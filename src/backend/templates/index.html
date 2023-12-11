@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <title>Chatbot</title>
+</head>
+
+<body>
+    <div class="chat_window">
+        <div class="top_menu">
+            <div class="buttons">
+                <!-- Botões de fechar, minimizar e maximizar -->
+                <div class="button close"></div>
+                <div class="button minimize"></div>
+                <div class="button maximize"></div>
+            </div>
+            <div class="title">Live chat</div>
+        </div>
+
+        <ul class="messages" id="chat-messages">
+            <!-- Seção de mensagens -->
+        </ul>
+
+        <div class="bottom_wrapper">
+            <div class="message_input_wrapper">
+                <input class="message_input" id="textAreaExample" placeholder="Digite sua mensagem..." />
+            </div>
+            <button id="sendButton" class="send_message">
+                <div class="text">Enviar</div>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var updateScrollbar = function () {
+                $('.messages').animate({ scrollTop: $('.messages').prop('scrollHeight') }, 300);
+            };
+
+            var Message = function (arg) {
+                this.text = arg.text, this.message_side = arg.message_side;
+                this.draw = function (_this) {
+                    return function () {
+                        var $message;
+                        $message = $('<li class="message appeared"><div class="avatar"></div><div class="text_wrapper"><div class="text"></div></div></li>');
+                        $message.addClass(_this.message_side).find('.text').html(_this.text);
+                        $('.messages').append($message);
+                        updateScrollbar();
+                        return setTimeout(function () {
+                            return $message.addClass('appeared');
+                        }, 0);
+                    };
+                }(this);
+                return this;
+            };
+
+            var getMessageText = function () {
+                return $('.message_input').val();
+            };
+
+            var sendMessage = function (text) {
+                var message_side = 'left';
+                if (text.trim() === '') {
+                    return;
+                }
+                $('.message_input').val('');
+
+                var message = new Message({
+                    text: text,
+                    message_side: message_side
+                });
+                message.draw();
+
+                // Atualizado para chamar updateScrollbar apenas uma vez após o envio da mensagem
+                updateScrollbar();
+
+                $.ajax({
+                    type: 'POST',
+                    url: '/predict',
+                    contentType: 'application/json;charset=UTF-8',
+                    data: JSON.stringify({ data: text }),
+                    success: function (response) {
+                        // Apenas remova a chamada draw daqui
+                        // ...
+
+                        // Verifica se a mensagem é negativa
+                        if (response.sentiment === 'negative') {
+                            // Se sim, chama a API de frases motivadoras
+                            fetch('https://api.quotable.io/random')
+                                .then(response => response.json())
+                                .then(data => {
+                                    // Exibe a resposta motivadora no chat
+                                    var motivationMessage = new Message({
+                                        text: data.content,
+                                        message_side: 'right'
+                                    });
+                                    motivationMessage.draw();
+                                    updateScrollbar();
+                                })
+                                .catch(error => console.error('Erro ao obter frase motivadora:', error));
+                        } else if (response.sentiment === 'positive') {
+                            // Se a mensagem for positiva, exibe a resposta específica
+                            var positiveMessage = new Message({
+                                text: "I'm happy for you! Keep that positive mood and keep enjoying the good times. You are doing great, remember that if you ever feel sad, you can count on me. I'm just a message away. Let’s move forward! 😊",
+                                message_side: 'right'
+                            });
+                            positiveMessage.draw();
+                            updateScrollbar();
+                        }
+                    },
+                    error: function (error) {
+                        console.log('Erro ao chamar a rota predict:', error);
+                    }
+                });
+            };
+
+            var sendButton = document.getElementById('sendButton');
+            if (sendButton) {
+                sendButton.addEventListener('click', function () {
+                    var messageText = getMessageText();
+                    if (messageText !== 'How can I help you?') {
+                        sendMessage(messageText);
+                    }
+                });
+            }
+
+            var sendInitialMessage = function () {
+                var initialMessage = "How can I help you?";
+                var message = new Message({
+                    text: initialMessage,
+                    message_side: 'right'
+                });
+                message.draw();
+                updateScrollbar();
+            };
+
+            sendInitialMessage();
+        });
+    </script>
+
+</body>
+
+</html>
